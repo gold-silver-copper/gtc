@@ -1,4 +1,5 @@
 use csv::Reader;
+use geo::{Distance, Haversine, Point};
 use geojson::{Feature, FeatureCollection, GeoJson, Value};
 use std::error::Error;
 use std::fs::{create_dir, File};
@@ -17,10 +18,43 @@ struct BlockLocation {
     lat: f64,
     lng: f64,
 }
+#[derive(Debug)]
+struct DistanceBlock {
+    id: String,
+    population: i64,
+    distance: f64,
+}
+fn haversine_distance(p1: &StopLocation, p2: &BlockLocation) -> f64 {
+    let point1 = Point::new(p1.lng, p1.lat);
+    let point2 = Point::new(p2.lng, p2.lat);
+    let dist = Haversine::distance(point1, point2); //output is in meters
+    (dist * 0.00062137) // convert to miles
+}
 
 fn main() -> Result<(), Box<dyn Error>> {
     // create_centroids_csv();
-    read_transit_stops();
+    let transit_stops = read_transit_stops().unwrap();
+    let blocks = read_census_blocks().unwrap();
+
+    let mut results = Vec::new();
+
+    for block in &blocks {
+        let mut closest_stop: Option<String> = None;
+        let mut min_distance = 10.0;
+        for transit_stop in &transit_stops {
+            let distance = haversine_distance(transit_stop, block);
+
+            if distance < min_distance {
+                min_distance = distance;
+                closest_stop = Some(transit_stop.id.clone());
+            }
+        }
+        if let Some(stop) = closest_stop {
+            let resultik = (block.id.clone(), stop.clone(), min_distance);
+            println!("resultik is {:#?}", resultik);
+            results.push(resultik);
+        }
+    }
     analysis();
     Ok(())
 }
@@ -39,6 +73,29 @@ fn read_transit_stops() -> Result<Vec<StopLocation>, Box<dyn Error>> {
         let lat: f64 = record.get(5).unwrap_or("0").parse()?;
         let lng: f64 = record.get(6).unwrap_or("0").parse()?;
         let geoloc = StopLocation { id, lat, lng };
+        println!("{:#?}", geoloc);
+        locations.push(geoloc);
+    }
+
+    Ok(locations)
+}
+
+fn read_census_blocks() -> Result<Vec<BlockLocation>, Box<dyn Error>> {
+    let mut reader = Reader::from_path("centroids.csv")?;
+    let mut locations = Vec::new();
+
+    for result in reader.records() {
+        let record = result?;
+        let id = record.get(0).unwrap_or("").to_string();
+        let population: i64 = record.get(2).unwrap_or("0").parse()?;
+        let lat: f64 = record.get(4).unwrap_or("0").parse()?;
+        let lng: f64 = record.get(3).unwrap_or("0").parse()?;
+        let geoloc = BlockLocation {
+            id,
+            population,
+            lat,
+            lng,
+        };
         println!("{:#?}", geoloc);
         locations.push(geoloc);
     }
