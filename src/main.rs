@@ -9,34 +9,50 @@ fn main() -> Result<(), Box<dyn Error>> {
     let geojson: GeoJson = geojson_str.parse()?;
 
     // Open CSV file for writing
-    let mut csv_writer = csv::Writer::from_writer(File::create("output.csv")?);
+    let mut csv_writer = csv::Writer::from_writer(File::create("centroids.csv")?);
 
     // Write header row
-    csv_writer.write_record(["longitude", "latitude", "name"])?;
+    csv_writer.write_record(["geoid", "name", "population", "longitude", "latitude"])?;
 
     if let GeoJson::FeatureCollection(FeatureCollection { features, .. }) = geojson {
         for feature in features {
             if let Some(Value::Point(coords)) = feature.geometry.as_ref().map(|g| &g.value) {
                 let longitude = coords[0];
                 let latitude = coords[1];
-                let name = feature
+                let geoid = feature
                     .properties
                     .as_ref()
                     .and_then(|p| p.get("GEOID"))
                     .and_then(|v| v.as_str())
                     .unwrap_or("");
 
+                let name = feature
+                    .properties
+                    .as_ref()
+                    .and_then(|p| p.get("NAME"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let population = feature
+                    .properties
+                    .as_ref()
+                    .and_then(|p| p.get("P0010001"))
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0);
+                println!("WHAT: {} ", population);
+
                 // Write to CSV
                 csv_writer.write_record(&[
+                    geoid.to_string(),
+                    name.to_string(),
+                    population.to_string(),
                     longitude.to_string(),
                     latitude.to_string(),
-                    name.to_string(),
                 ])?;
             }
         }
     }
 
     csv_writer.flush()?;
-    println!("Conversion complete! Output saved to output.csv");
+    println!("Conversion complete! Output saved to centroids.csv");
     Ok(())
 }
