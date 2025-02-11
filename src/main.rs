@@ -1,9 +1,19 @@
 use geojson::{Feature, FeatureCollection, GeoJson, Value};
 use std::error::Error;
-use std::fs::File;
+use std::fs::{create_dir, File};
 use std::io::Write;
 
 fn main() -> Result<(), Box<dyn Error>> {
+    // create_centroids_csv();
+    analysis();
+    Ok(())
+}
+
+fn analysis() -> Result<(), Box<dyn Error>> {
+    Ok(())
+}
+
+fn create_centroids_csv() -> Result<(), Box<dyn Error>> {
     // Read the GeoJSON file
     let geojson_str = std::fs::read_to_string("meep.geojson")?;
     let geojson: GeoJson = geojson_str.parse()?;
