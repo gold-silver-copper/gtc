@@ -33,14 +33,22 @@ fn haversine_distance(p1: &StopLocation, p2: &BlockLocation) -> f64 {
 
 fn main() -> Result<(), Box<dyn Error>> {
     // create_centroids_csv();
+    analysis();
+    Ok(())
+}
+
+fn analysis() -> Result<(), Box<dyn Error>> {
     let transit_stops = read_transit_stops().unwrap();
     let blocks = read_census_blocks().unwrap();
 
     let mut results = Vec::new();
+    let mut total_population = 0;
+    let mut pop_within_half_mile = 0;
 
     for block in &blocks {
         let mut closest_stop: Option<String> = None;
-        let mut min_distance = 10.0;
+        let mut min_distance = 0.1;
+        total_population += block.population;
         for transit_stop in &transit_stops {
             let distance = haversine_distance(transit_stop, block);
 
@@ -51,15 +59,15 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         if let Some(stop) = closest_stop {
             let resultik = (block.id.clone(), stop.clone(), min_distance);
-            println!("resultik is {:#?}", resultik);
+            pop_within_half_mile += block.population;
+            //println!("resultik is {:#?}", resultik);
             results.push(resultik);
         }
     }
-    analysis();
-    Ok(())
-}
-
-fn analysis() -> Result<(), Box<dyn Error>> {
+    println!("total population is {:#?}", total_population);
+    println!("population within half mile is {:#?}", pop_within_half_mile);
+    let ratio = pop_within_half_mile as f64 / total_population as f64;
+    println!("ratio is {:#?}", ratio);
     Ok(())
 }
 
@@ -73,7 +81,7 @@ fn read_transit_stops() -> Result<Vec<StopLocation>, Box<dyn Error>> {
         let lat: f64 = record.get(5).unwrap_or("0").parse()?;
         let lng: f64 = record.get(6).unwrap_or("0").parse()?;
         let geoloc = StopLocation { id, lat, lng };
-        println!("{:#?}", geoloc);
+        //  println!("{:#?}", geoloc);
         locations.push(geoloc);
     }
 
@@ -96,7 +104,7 @@ fn read_census_blocks() -> Result<Vec<BlockLocation>, Box<dyn Error>> {
             lat,
             lng,
         };
-        println!("{:#?}", geoloc);
+        //  println!("{:#?}", geoloc);
         locations.push(geoloc);
     }
 
