@@ -52,7 +52,7 @@ fn analysis() -> Result<(), Box<dyn Error>> {
     for block in &blocks {
         // break;
         let mut closest_stop: Option<String> = None;
-        let mut min_distance = 0.5;
+        let mut min_distance = 0.4;
         total_population += block.population;
         for transit_stop in &transit_stops {
             let distance = haversine_distance(transit_stop, block);
@@ -133,7 +133,7 @@ fn read_nctd_transit_stops_with_headway() -> Result<Vec<String>, Box<dyn Error>>
     let mut headwayed_stops = Vec::new();
 
     for (key, value) in headway_map {
-        if has_close_times(&value, 15) {
+        if has_close_times(&value) {
             headwayed_stops.push(key.clone());
         }
     }
@@ -191,23 +191,26 @@ fn read_mts_transit_stops_with_headway() -> Result<Vec<String>, Box<dyn Error>> 
     let mut headwayed_stops = Vec::new();
 
     for (key, value) in headway_map {
-        if has_close_times(&value, 15) {
+        if has_close_times(&value) {
             headwayed_stops.push(key.clone());
         }
     }
     // println!("{:#?}", headwayed_stops);
     Ok(headwayed_stops)
 }
-fn has_close_times(times: &HashSet<NaiveTime>, threshold_minutes: i64) -> bool {
+fn has_close_times(times: &HashSet<NaiveTime>) -> bool {
     let mut sorted_times: Vec<_> = times.iter().collect();
+
     let since = NaiveTime::signed_duration_since;
     sorted_times.sort(); // Sorting ensures we only check consecutive pairs
-    let delta = TimeDelta::minutes(threshold_minutes);
+    let min_delta = TimeDelta::minutes(14);
+    let max_delta = TimeDelta::minutes(16);
 
     for window in sorted_times.windows(2) {
         if let [t1, t2] = window {
             let diff = since(*t2.clone(), *t1.clone());
-            if diff <= delta {
+            if (diff <= max_delta) && (min_delta <= diff) {
+                println!("{:#?}", sorted_times);
                 println!("{:#?}", [t1, t2]);
                 return true;
             }
