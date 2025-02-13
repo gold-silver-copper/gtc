@@ -1,6 +1,8 @@
+use chrono::{NaiveTime, TimeDelta};
 use csv::Reader;
 use geo::{Distance, Haversine, Point};
 use geojson::{Feature, FeatureCollection, GeoJson, Value};
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fs::{create_dir, File};
 use std::io::Write;
@@ -18,12 +20,7 @@ struct BlockLocation {
     lat: f64,
     lng: f64,
 }
-#[derive(Debug)]
-struct DistanceBlock {
-    id: String,
-    population: i64,
-    distance: f64,
-}
+type HeadwayMap = HashMap<String, HashSet<NaiveTime>>;
 fn haversine_distance(p1: &StopLocation, p2: &BlockLocation) -> f64 {
     let point1 = Point::new(p1.lng, p1.lat);
     let point2 = Point::new(p2.lng, p2.lat);
@@ -33,7 +30,9 @@ fn haversine_distance(p1: &StopLocation, p2: &BlockLocation) -> f64 {
 
 fn main() -> Result<(), Box<dyn Error>> {
     // create_centroids_csv();
-    analysis();
+    // analysis();
+    let nctd_headways = read_nctd_transit_stops_with_headway().unwrap();
+    let mts_headways = read_mts_transit_stops_with_headway().unwrap();
     Ok(())
 }
 
@@ -70,7 +69,137 @@ fn analysis() -> Result<(), Box<dyn Error>> {
     println!("ratio is {:#?}", ratio);
     Ok(())
 }
+fn read_nctd_transit_stops_with_headway() -> Result<Vec<String>, Box<dyn Error>> {
+    let mut reader = Reader::from_path("gtfs/stop_times.txt")?;
+    let mut headway_map = HeadwayMap::new();
+    let format = "%H:%M:%S";
 
+    for result in reader.records() {
+        let record = result?;
+        let mut id = record.get(3).unwrap_or("").to_string();
+        id = format!("NCTD_{}", id);
+
+        let mut arrival_time_pre = record.get(1).unwrap_or("").to_string();
+        if arrival_time_pre.starts_with("24") {
+            arrival_time_pre = format!("{}{}", "00", &arrival_time_pre[2..]); // Replace first two characters
+        }
+        if arrival_time_pre.starts_with("25") {
+            arrival_time_pre = format!("{}{}", "01", &arrival_time_pre[2..]); // Replace first two characters
+        }
+        if arrival_time_pre.starts_with("26") {
+            arrival_time_pre = format!("{}{}", "02", &arrival_time_pre[2..]); // Replace first two characters
+        }
+        if arrival_time_pre.starts_with("27") {
+            arrival_time_pre = format!("{}{}", "03", &arrival_time_pre[2..]); // Replace first two characters
+        }
+        let arrival_time = NaiveTime::parse_from_str(&arrival_time_pre, format).unwrap();
+
+        /*
+        match arrival_time {
+            Ok(_) => {}
+            Err(x) => {
+                println!("{:#?} {:#?}", x, arrival_time_pre);
+            }
+        }
+        */
+
+        match headway_map.get_mut(&id) {
+            Some(pair) => {
+                pair.insert(arrival_time);
+            }
+            None => {
+                headway_map.insert(id, HashSet::from([arrival_time]));
+            }
+        }
+
+        // println!("{:#?}", arrival_time);
+        //  headway_map.insert(geoloc);
+    }
+
+    let mut headwayed_stops = Vec::new();
+
+    for (key, value) in headway_map {
+        if has_close_times(&value, 20) {
+            headwayed_stops.push(key.clone());
+        }
+    }
+    println!("{:#?}", headwayed_stops);
+    Ok(headwayed_stops)
+}
+
+fn read_mts_transit_stops_with_headway() -> Result<Vec<String>, Box<dyn Error>> {
+    let mut reader = Reader::from_path("google_transit/stop_times.txt")?;
+    let mut headway_map = HeadwayMap::new();
+    let format = "%H:%M:%S";
+
+    for result in reader.records() {
+        let record = result?;
+        let mut id = record.get(3).unwrap_or("").to_string();
+        id = format!("MTS_{}", id);
+
+        let mut arrival_time_pre = record.get(1).unwrap_or("").to_string();
+        if arrival_time_pre.starts_with("24") {
+            arrival_time_pre = format!("{}{}", "00", &arrival_time_pre[2..]); // Replace first two characters
+        }
+        if arrival_time_pre.starts_with("25") {
+            arrival_time_pre = format!("{}{}", "01", &arrival_time_pre[2..]); // Replace first two characters
+        }
+        if arrival_time_pre.starts_with("26") {
+            arrival_time_pre = format!("{}{}", "02", &arrival_time_pre[2..]); // Replace first two characters
+        }
+        if arrival_time_pre.starts_with("27") {
+            arrival_time_pre = format!("{}{}", "03", &arrival_time_pre[2..]); // Replace first two characters
+        }
+        let arrival_time = NaiveTime::parse_from_str(&arrival_time_pre, format).unwrap();
+
+        /*
+        match arrival_time {
+            Ok(_) => {}
+            Err(x) => {
+                println!("{:#?} {:#?}", x, arrival_time_pre);
+            }
+        }
+        */
+
+        match headway_map.get_mut(&id) {
+            Some(pair) => {
+                pair.insert(arrival_time);
+            }
+            None => {
+                headway_map.insert(id, HashSet::from([arrival_time]));
+            }
+        }
+
+        // println!("{:#?}", arrival_time);
+        //  headway_map.insert(geoloc);
+    }
+
+    let mut headwayed_stops = Vec::new();
+
+    for (key, value) in headway_map {
+        if has_close_times(&value, 20) {
+            headwayed_stops.push(key.clone());
+        }
+    }
+    println!("{:#?}", headwayed_stops);
+    Ok(headwayed_stops)
+}
+fn has_close_times(times: &HashSet<NaiveTime>, threshold_minutes: i64) -> bool {
+    let mut sorted_times: Vec<_> = times.iter().collect();
+    let since = NaiveTime::signed_duration_since;
+    sorted_times.sort(); // Sorting ensures we only check consecutive pairs
+    let delta = TimeDelta::minutes(threshold_minutes);
+
+    for window in sorted_times.windows(2) {
+        if let [t1, t2] = window {
+            let diff = since(*t1.clone(), *t2.clone());
+            if diff <= delta {
+                return true;
+            }
+        }
+    }
+    false
+}
 fn read_transit_stops() -> Result<Vec<StopLocation>, Box<dyn Error>> {
     let mut reader = Reader::from_path("transit_stops_datasd.csv")?;
     let mut locations = Vec::new();
