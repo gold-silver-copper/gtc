@@ -30,23 +30,29 @@ fn haversine_distance(p1: &StopLocation, p2: &BlockLocation) -> f64 {
 
 fn main() -> Result<(), Box<dyn Error>> {
     // create_centroids_csv();
-    // analysis();
-    let nctd_headways = read_nctd_transit_stops_with_headway().unwrap();
-    let mts_headways = read_mts_transit_stops_with_headway().unwrap();
+    analysis();
+
     Ok(())
 }
 
 fn analysis() -> Result<(), Box<dyn Error>> {
-    let transit_stops = read_transit_stops().unwrap();
+    let mut transit_stops = read_transit_stops().unwrap();
+
     let blocks = read_census_blocks().unwrap();
 
     let mut results = Vec::new();
-    let mut total_population = 0;
+    let mut total_population = 1;
     let mut pop_within_half_mile = 0;
+    let mut nctd_headways = read_nctd_transit_stops_with_headway().unwrap();
+    let mut mts_headways = read_mts_transit_stops_with_headway().unwrap();
+    nctd_headways.append(&mut mts_headways);
+    transit_stops.retain(|x| nctd_headways.contains(&x.id));
+    println!("ITERATION STARTED");
 
     for block in &blocks {
+        // break;
         let mut closest_stop: Option<String> = None;
-        let mut min_distance = 0.1;
+        let mut min_distance = 0.5;
         total_population += block.population;
         for transit_stop in &transit_stops {
             let distance = haversine_distance(transit_stop, block);
@@ -62,11 +68,19 @@ fn analysis() -> Result<(), Box<dyn Error>> {
             //println!("resultik is {:#?}", resultik);
             results.push(resultik);
         }
+
+        println!("total population is {:#?}", total_population);
+        println!("population within half mile is {:#?}", pop_within_half_mile);
+        let ratio = pop_within_half_mile as f64 / total_population as f64;
+        println!("ratio is {:#?}", ratio);
     }
-    println!("total population is {:#?}", total_population);
-    println!("population within half mile is {:#?}", pop_within_half_mile);
+    println!("FINAL total population is {:#?}", total_population);
+    println!(
+        "FINAL population within half mile is {:#?}",
+        pop_within_half_mile
+    );
     let ratio = pop_within_half_mile as f64 / total_population as f64;
-    println!("ratio is {:#?}", ratio);
+    println!("FINAL ratio is {:#?}", ratio);
     Ok(())
 }
 fn read_nctd_transit_stops_with_headway() -> Result<Vec<String>, Box<dyn Error>> {
@@ -119,11 +133,11 @@ fn read_nctd_transit_stops_with_headway() -> Result<Vec<String>, Box<dyn Error>>
     let mut headwayed_stops = Vec::new();
 
     for (key, value) in headway_map {
-        if has_close_times(&value, 20) {
+        if has_close_times(&value, 15) {
             headwayed_stops.push(key.clone());
         }
     }
-    println!("{:#?}", headwayed_stops);
+    //  println!("{:#?}", headwayed_stops);
     Ok(headwayed_stops)
 }
 
@@ -177,11 +191,11 @@ fn read_mts_transit_stops_with_headway() -> Result<Vec<String>, Box<dyn Error>> 
     let mut headwayed_stops = Vec::new();
 
     for (key, value) in headway_map {
-        if has_close_times(&value, 20) {
+        if has_close_times(&value, 15) {
             headwayed_stops.push(key.clone());
         }
     }
-    println!("{:#?}", headwayed_stops);
+    // println!("{:#?}", headwayed_stops);
     Ok(headwayed_stops)
 }
 fn has_close_times(times: &HashSet<NaiveTime>, threshold_minutes: i64) -> bool {
@@ -192,8 +206,9 @@ fn has_close_times(times: &HashSet<NaiveTime>, threshold_minutes: i64) -> bool {
 
     for window in sorted_times.windows(2) {
         if let [t1, t2] = window {
-            let diff = since(*t1.clone(), *t2.clone());
+            let diff = since(*t2.clone(), *t1.clone());
             if diff <= delta {
+                println!("{:#?}", [t1, t2]);
                 return true;
             }
         }
