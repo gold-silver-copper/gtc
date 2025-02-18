@@ -1,1 +1,45 @@
 for headway I should make a hashmap that contains the stop_id as the key, and the value will be a vector of stop times. once i create this hashmap i can go thru each pair and determine if the key has a proper headway. i then output the list of those with the proper head way.
+
+
+Methods:
+
+	The next portion of the project’s research design is made up of GIS analysis. This involved gathering GIS data from official government and industry sources, and then processing it using software and programming. Data sources used include SanGIS, SANDAG, UCSD Homelessness Hub, MTS, and NCTD. Software used is QGIS for initial exploratory work of data sources and ArcGIS Pro for retrieving and clipping Census Block data. The Rust programming language, utilizing geospatial libraries, was used to process, unify, and analyze the prepared data. This study recreates the "Walkable Distance to Public Transit" study, which calculates the percentage of people living within half a mile of a transit stop with a 15 minute headway. The original data is from 2012, but the recreation uses data updated to 2025, and also calculates other interesting information, such as percentage of people within half a mile of a transit stop regardless of headway. Census block centroids were obtained from the California Office of Emergency Services for 2020, but transit stop data is obtained in real time from MTS and NCTD through the GTFS (General Transit Feed Specification) program, meaning there is a slight temporal difference in the data sets analyzed; this is also the case in the original 2012 study. Thus there may be small under or over estimates of population numbers within buffer areas. Finally, ArcGIS Pro was used to create visualizations for our results.
+
+
+
+
+
+
+Findings:
+
+    The original "Walkable Distance to Public Transit" study found that in San Diego, 35.5% of people live within a half mile of a major transit stop, meaning a headway of 15 minutes. Using updated data for 2025, it was found that now 55% of people live near a major stop, and if not accounting for headway, that number grows to 75%. Thus the GIS analysis found that there has been a 20% increase in major transit stop coverage, and that the large majority of people live within walking distance of some public transport.
+
+
+
+
+Implications:
+
+    The findings of the GIS analysis, paired with the rider data from the State of the Commute, imply that there is no direct correlation between major transit stop coverage and actual public transit usage. This is in line with bike usage as well, coverage of all bikeways have increased, but biking trends are overall down. There are other factors which affect public transit usage, such as familiarity with and preference of alternative transport options, as well as significant events such as COVID-19 which can heavily skew data. Very important to really really figure out where public transport most effective, aka not in 2 car garage suburbs, but ucsd students YES.
+
+
+SOURCES:
+
+    https://hhubsandiego-ucsdonline.hub.arcgis.com/datasets/public-transit-stops-san-diego-county/explore
+
+    https://opendata.sandag.org/stories/s/2023-State-of-the-Commute/wmpe-xqcq/
+
+    https://data.chhs.ca.gov/dataset/walkable-distance-public-transit-2008-2012
+
+    https://www.sdmts.com/business-center/app-developers/real-time-data
+
+    https://mobilitydatabase.org/feeds/mdb-14
+
+    https://data.sandiego.gov/datasets/transit-stops/
+
+    https://www.sandag.org/-/media/SANDAG/Documents/PDF/data-and-research/applied-research-and-performance-monitoring/surveys/remote-work-tracking-survey-2023-11-06.pdf
+
+    https://www.sdmts.com/sites/default/files/attachments/trolley_extension_feeder_bus_study_2021.02.11_0.pdf
+
+    https://opendata.sandag.org/Geographic-Information-Systems/Census-Blocks-2020/nk2k-uhy2/about_data
+
+    https://www.arcgis.com/home/item.html?id=d737f45f125b46eebc5a69a5e82476aa
