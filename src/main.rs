@@ -1,5 +1,5 @@
 use chrono::{NaiveTime, TimeDelta};
-use csv::Reader;
+use csv::{Reader, ReaderBuilder, Writer};
 use geo::{Distance, Haversine, Point};
 use geojson::{Feature, FeatureCollection, GeoJson, Value};
 use std::collections::{HashMap, HashSet};
@@ -40,10 +40,39 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+fn finalize_blocks(allowed_ids: HashSet<String>) -> Result<(), Box<dyn Error>> {
+    let input_file = "Census_Blocks.csv";
+    let output_file = "filtered_blocks.csv";
+
+    // Open CSV file
+    let mut rdr = ReaderBuilder::new()
+        .has_headers(true)
+        .from_path(input_file)?;
+
+    let headers = rdr.headers()?.clone();
+    let mut wtr = Writer::from_path(output_file)?;
+    wtr.write_record(&headers)?;
+
+    for result in rdr.records() {
+        let record = result?;
+        if let Some(id) = record.get(2) {
+            // Assuming ID is in the third column
+            if allowed_ids.contains(id) {
+                wtr.write_record(&record)?;
+            }
+        }
+    }
+
+    wtr.flush()?;
+    println!("Filtered CSV saved to {}", output_file);
+    Ok(())
+}
+
 fn analysis() -> Result<(), Box<dyn Error>> {
     let mut transit_stops = read_transit_stops().unwrap();
 
-    let blocks = read_census_blocks().unwrap();
+    let blocks = read_centroids_csv().unwrap();
+    let mut blocks_within_range = HashSet::new();
 
     let mut results = Vec::new();
     let mut total_population = 1;
@@ -69,6 +98,7 @@ fn analysis() -> Result<(), Box<dyn Error>> {
         }
         if let Some(stop) = closest_stop {
             let resultik = (block.id.clone(), stop.clone(), min_distance);
+            blocks_within_range.insert(block.id.clone());
             pop_within_half_mile += block.population;
             //println!("resultik is {:#?}", resultik);
             results.push(resultik);
@@ -86,6 +116,7 @@ fn analysis() -> Result<(), Box<dyn Error>> {
     );
     let ratio = pop_within_half_mile as f64 / total_population as f64;
     println!("FINAL ratio is {:#?}", ratio);
+    finalize_blocks(blocks_within_range);
     Ok(())
 }
 
@@ -205,7 +236,7 @@ fn read_transit_stops() -> Result<Vec<StopLocation>, Box<dyn Error>> {
     Ok(locations)
 }
 
-fn read_census_blocks() -> Result<Vec<BlockLocation>, Box<dyn Error>> {
+fn read_centroids_csv() -> Result<Vec<BlockLocation>, Box<dyn Error>> {
     let mut reader = Reader::from_path("centroids.csv")?;
     let mut locations = Vec::new();
 
