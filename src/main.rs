@@ -7,6 +7,11 @@ use std::error::Error;
 use std::fs::{create_dir, File};
 use std::io::Write;
 
+enum Provider {
+    MTS,
+    NCTD,
+}
+
 #[derive(Debug)]
 struct StopLocation {
     id: String,
@@ -198,6 +203,74 @@ fn read_mts_transit_stops_with_headway() -> Result<Vec<String>, Box<dyn Error>> 
     // println!("{:#?}", headwayed_stops);
     Ok(headwayed_stops)
 }
+
+fn read_transit_stops_with_headway(provider: Provider) -> Result<Vec<String>, Box<dyn Error>> {
+    let pathik = match provider {
+        Provider::MTS => "google_transit/stop_times.txt",
+        Provider::NCTD => "gtfs/stop_times.txt",
+    };
+    let mut reader = Reader::from_path(pathik)?;
+    let mut headway_map = HeadwayMap::new();
+    let format = "%H:%M:%S";
+
+    let prefixik = match provider {
+        Provider::MTS => "MTS_",
+        Provider::NCTD => "NCTD_",
+    };
+
+    for result in reader.records() {
+        let record = result?;
+        let mut id = record.get(3).unwrap_or("").to_string();
+        id = format!("{}{}", prefixik, id);
+
+        let mut arrival_time_pre = record.get(1).unwrap_or("").to_string();
+        if arrival_time_pre.starts_with("24") {
+            arrival_time_pre = format!("{}{}", "00", &arrival_time_pre[2..]); // Replace first two characters
+        }
+        if arrival_time_pre.starts_with("25") {
+            arrival_time_pre = format!("{}{}", "01", &arrival_time_pre[2..]); // Replace first two characters
+        }
+        if arrival_time_pre.starts_with("26") {
+            arrival_time_pre = format!("{}{}", "02", &arrival_time_pre[2..]); // Replace first two characters
+        }
+        if arrival_time_pre.starts_with("27") {
+            arrival_time_pre = format!("{}{}", "03", &arrival_time_pre[2..]); // Replace first two characters
+        }
+        let arrival_time = NaiveTime::parse_from_str(&arrival_time_pre, format).unwrap();
+
+        /*
+        match arrival_time {
+            Ok(_) => {}
+            Err(x) => {
+                println!("{:#?} {:#?}", x, arrival_time_pre);
+            }
+        }
+        */
+
+        match headway_map.get_mut(&id) {
+            Some(pair) => {
+                pair.insert(arrival_time);
+            }
+            None => {
+                headway_map.insert(id, HashSet::from([arrival_time]));
+            }
+        }
+
+        // println!("{:#?}", arrival_time);
+        //  headway_map.insert(geoloc);
+    }
+
+    let mut headwayed_stops = Vec::new();
+
+    for (key, value) in headway_map {
+        if has_close_times(&value) {
+            headwayed_stops.push(key.clone());
+        }
+    }
+    // println!("{:#?}", headwayed_stops);
+    Ok(headwayed_stops)
+}
+
 fn has_close_times(times: &HashSet<NaiveTime>) -> bool {
     let mut sorted_times: Vec<_> = times.iter().collect();
 
