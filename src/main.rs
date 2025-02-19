@@ -182,7 +182,7 @@ fn has_close_times(times: &HashSet<NaiveTime>) -> bool {
             }
         }
     }
-    if close_counter > 20 {
+    if close_counter > 23 {
         return true;
     } else {
         return false;
