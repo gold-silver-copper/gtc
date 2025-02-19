@@ -42,7 +42,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 fn finalize_blocks(allowed_ids: HashSet<String>) -> Result<(), Box<dyn Error>> {
     let input_file = "Census_Blocks.csv";
-    let output_file = "filtered_blocks.csv";
+    let output_file = "filtered_blocks_2.csv";
 
     // Open CSV file
     let mut rdr = ReaderBuilder::new()
@@ -188,6 +188,8 @@ fn read_transit_stops_with_headway(provider: Provider) -> Result<Vec<String>, Bo
 }
 
 fn has_close_times(times: &HashSet<NaiveTime>) -> bool {
+    // instant return for no headway
+    //  return true;
     let mut sorted_times: Vec<_> = times.iter().collect();
     let format = "%H:%M:%S";
     let sixam = NaiveTime::parse_from_str("06:00:00", format).unwrap();
