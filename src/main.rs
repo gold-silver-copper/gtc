@@ -48,8 +48,8 @@ fn analysis() -> Result<(), Box<dyn Error>> {
     let mut results = Vec::new();
     let mut total_population = 1;
     let mut pop_within_half_mile = 0;
-    let mut nctd_headways = read_nctd_transit_stops_with_headway().unwrap();
-    let mut mts_headways = read_mts_transit_stops_with_headway().unwrap();
+    let mut nctd_headways = read_transit_stops_with_headway(Provider::NCTD).unwrap();
+    let mut mts_headways = read_transit_stops_with_headway(Provider::MTS).unwrap();
     nctd_headways.append(&mut mts_headways);
     transit_stops.retain(|x| nctd_headways.contains(&x.id));
     println!("ITERATION STARTED");
@@ -57,7 +57,7 @@ fn analysis() -> Result<(), Box<dyn Error>> {
     for block in &blocks {
         // break;
         let mut closest_stop: Option<String> = None;
-        let mut min_distance = 0.4;
+        let mut min_distance = 0.5;
         total_population += block.population;
         for transit_stop in &transit_stops {
             let distance = haversine_distance(transit_stop, block);
@@ -87,121 +87,6 @@ fn analysis() -> Result<(), Box<dyn Error>> {
     let ratio = pop_within_half_mile as f64 / total_population as f64;
     println!("FINAL ratio is {:#?}", ratio);
     Ok(())
-}
-fn read_nctd_transit_stops_with_headway() -> Result<Vec<String>, Box<dyn Error>> {
-    let mut reader = Reader::from_path("gtfs/stop_times.txt")?;
-    let mut headway_map = HeadwayMap::new();
-    let format = "%H:%M:%S";
-
-    for result in reader.records() {
-        let record = result?;
-        let mut id = record.get(3).unwrap_or("").to_string();
-        id = format!("NCTD_{}", id);
-
-        let mut arrival_time_pre = record.get(1).unwrap_or("").to_string();
-        if arrival_time_pre.starts_with("24") {
-            arrival_time_pre = format!("{}{}", "00", &arrival_time_pre[2..]); // Replace first two characters
-        }
-        if arrival_time_pre.starts_with("25") {
-            arrival_time_pre = format!("{}{}", "01", &arrival_time_pre[2..]); // Replace first two characters
-        }
-        if arrival_time_pre.starts_with("26") {
-            arrival_time_pre = format!("{}{}", "02", &arrival_time_pre[2..]); // Replace first two characters
-        }
-        if arrival_time_pre.starts_with("27") {
-            arrival_time_pre = format!("{}{}", "03", &arrival_time_pre[2..]); // Replace first two characters
-        }
-        let arrival_time = NaiveTime::parse_from_str(&arrival_time_pre, format).unwrap();
-
-        /*
-        match arrival_time {
-            Ok(_) => {}
-            Err(x) => {
-                println!("{:#?} {:#?}", x, arrival_time_pre);
-            }
-        }
-        */
-
-        match headway_map.get_mut(&id) {
-            Some(pair) => {
-                pair.insert(arrival_time);
-            }
-            None => {
-                headway_map.insert(id, HashSet::from([arrival_time]));
-            }
-        }
-
-        // println!("{:#?}", arrival_time);
-        //  headway_map.insert(geoloc);
-    }
-
-    let mut headwayed_stops = Vec::new();
-
-    for (key, value) in headway_map {
-        if has_close_times(&value) {
-            headwayed_stops.push(key.clone());
-        }
-    }
-    //  println!("{:#?}", headwayed_stops);
-    Ok(headwayed_stops)
-}
-
-fn read_mts_transit_stops_with_headway() -> Result<Vec<String>, Box<dyn Error>> {
-    let mut reader = Reader::from_path("google_transit/stop_times.txt")?;
-    let mut headway_map = HeadwayMap::new();
-    let format = "%H:%M:%S";
-
-    for result in reader.records() {
-        let record = result?;
-        let mut id = record.get(3).unwrap_or("").to_string();
-        id = format!("MTS_{}", id);
-
-        let mut arrival_time_pre = record.get(1).unwrap_or("").to_string();
-        if arrival_time_pre.starts_with("24") {
-            arrival_time_pre = format!("{}{}", "00", &arrival_time_pre[2..]); // Replace first two characters
-        }
-        if arrival_time_pre.starts_with("25") {
-            arrival_time_pre = format!("{}{}", "01", &arrival_time_pre[2..]); // Replace first two characters
-        }
-        if arrival_time_pre.starts_with("26") {
-            arrival_time_pre = format!("{}{}", "02", &arrival_time_pre[2..]); // Replace first two characters
-        }
-        if arrival_time_pre.starts_with("27") {
-            arrival_time_pre = format!("{}{}", "03", &arrival_time_pre[2..]); // Replace first two characters
-        }
-        let arrival_time = NaiveTime::parse_from_str(&arrival_time_pre, format).unwrap();
-
-        /*
-        match arrival_time {
-            Ok(_) => {}
-            Err(x) => {
-                println!("{:#?} {:#?}", x, arrival_time_pre);
-            }
-        }
-        */
-
-        match headway_map.get_mut(&id) {
-            Some(pair) => {
-                pair.insert(arrival_time);
-            }
-            None => {
-                headway_map.insert(id, HashSet::from([arrival_time]));
-            }
-        }
-
-        // println!("{:#?}", arrival_time);
-        //  headway_map.insert(geoloc);
-    }
-
-    let mut headwayed_stops = Vec::new();
-
-    for (key, value) in headway_map {
-        if has_close_times(&value) {
-            headwayed_stops.push(key.clone());
-        }
-    }
-    // println!("{:#?}", headwayed_stops);
-    Ok(headwayed_stops)
 }
 
 fn read_transit_stops_with_headway(provider: Provider) -> Result<Vec<String>, Box<dyn Error>> {
@@ -273,23 +158,35 @@ fn read_transit_stops_with_headway(provider: Provider) -> Result<Vec<String>, Bo
 
 fn has_close_times(times: &HashSet<NaiveTime>) -> bool {
     let mut sorted_times: Vec<_> = times.iter().collect();
-
+    let format = "%H:%M:%S";
+    let sixam = NaiveTime::parse_from_str("06:00:00", format).unwrap();
+    let nineam = NaiveTime::parse_from_str("09:00:00", format).unwrap();
+    let threepm = NaiveTime::parse_from_str("15:00:00", format).unwrap();
+    let sixpm = NaiveTime::parse_from_str("18:00:00", format).unwrap();
     let since = NaiveTime::signed_duration_since;
     sorted_times.sort(); // Sorting ensures we only check consecutive pairs
-    let min_delta = TimeDelta::minutes(14);
+    let min_delta = TimeDelta::minutes(0);
     let max_delta = TimeDelta::minutes(16);
+
+    let mut close_counter = 0;
 
     for window in sorted_times.windows(2) {
         if let [t1, t2] = window {
-            let diff = since(*t2.clone(), *t1.clone());
-            if (diff <= max_delta) && (min_delta <= diff) {
-                println!("{:#?}", sorted_times);
-                println!("{:#?}", [t1, t2]);
-                return true;
+            if ((sixam <= **t1) && (**t1 <= nineam)) || ((threepm <= **t1) && (**t1 <= sixpm)) {
+                let diff = since(**t2, **t1);
+                if (diff <= max_delta) && (min_delta <= diff) {
+                    println!("{:#?}", sorted_times);
+                    println!("{:#?}", [t1, t2]);
+                    close_counter += 1;
+                }
             }
         }
     }
-    false
+    if close_counter > 20 {
+        return true;
+    } else {
+        return false;
+    }
 }
 fn read_transit_stops() -> Result<Vec<StopLocation>, Box<dyn Error>> {
     let mut reader = Reader::from_path("transit_stops_datasd.csv")?;

@@ -1,3 +1,9 @@
+FINAL RESULTS:
+
+74.4% of the population of San Diego county lives within half a mile of at least some kind of public transit stop.
+
+
+
 for headway I should make a hashmap that contains the stop_id as the key, and the value will be a vector of stop times. once i create this hashmap i can go thru each pair and determine if the key has a proper headway. i then output the list of those with the proper head way.
 
 
